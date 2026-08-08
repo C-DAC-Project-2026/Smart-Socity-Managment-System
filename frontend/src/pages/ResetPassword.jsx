@@ -44,6 +44,10 @@ export default function ResetPassword() {
 
   return (
     <div className="auth-page">
+      <Link to="/" className="brand-mark auth-page-brand">
+        <span className="brand-mark-icon">SS</span>
+        Smart Society
+      </Link>
       <form className="auth-card" onSubmit={handleSubmit}>
         <h2>Reset Password</h2>
         {!token && (

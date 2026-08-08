@@ -6,8 +6,10 @@ import com.society.exception.BadRequestException;
 import com.society.exception.ResourceNotFoundException;
 import com.society.repository.*;
 import com.society.security.JwtTokenProvider;
+import com.society.security.SecurityUtils;
 import com.society.service.AuthService;
 import com.society.service.CaptchaService;
+import com.society.util.AppConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +39,8 @@ public class AuthServiceImpl implements AuthService {
     private final CaptchaService        captchaService;
     private final PasswordResetTokenRepository resetTokenRepository;
     private final JavaMailSender        mailSender;
+    private final SocietyRepository     societyRepository;
+    private final SecurityUtils         securityUtils;
 
     @Value("${app.frontend.reset-password-url}")
     private String resetPasswordUrl;
@@ -73,8 +77,12 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public String register(RegisterRequest request) {
-        if (!captchaService.verify(request.getCaptchaId(), request.getCaptchaAnswer())) {
-            throw new BadRequestException("Incorrect captcha answer. Please try again.");
+        // This endpoint is only for a Society Admin populating their own society
+        // with RESIDENT / STAFF accounts. ADMIN and SUPER_ADMIN accounts are
+        // never created here — Society Admins are created by SUPER_ADMIN when
+        // the society itself is registered (see SuperAdminServiceImpl).
+        if (!AppConstants.ROLE_RESIDENT.equals(request.getRole()) && !AppConstants.ROLE_STAFF.equals(request.getRole())) {
+            throw new BadRequestException("This endpoint can only register RESIDENT or STAFF users");
         }
 
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -84,16 +92,24 @@ public class AuthServiceImpl implements AuthService {
         Role role = roleRepository.findByRoleName(request.getRole())
             .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + request.getRole()));
 
+        // societyId comes ONLY from the authenticated admin's own JWT-derived
+        // context — never from the request body — so a tampered request can
+        // never plant a user into a different society.
+        Society society = societyRepository.findById(securityUtils.getCurrentSocietyId())
+            .orElseThrow(() -> new ResourceNotFoundException("Society not found"));
+
         User user = User.builder()
             .name(request.getName())
             .email(request.getEmail())
             .password(passwordEncoder.encode(request.getPassword()))
             .role(role)
+            .society(society)
             .build();
         user = userRepository.save(user);
 
-        if ("ROLE_RESIDENT".equals(request.getRole())) {
-            if (request.getFlatNo() != null && residentRepository.existsByFlatNo(request.getFlatNo())) {
+        if (AppConstants.ROLE_RESIDENT.equals(request.getRole())) {
+            if (request.getFlatNo() != null
+                    && residentRepository.existsByFlatNoAndSociety_SocietyId(request.getFlatNo(), society.getSocietyId())) {
                 throw new BadRequestException("Flat number already registered: " + request.getFlatNo());
             }
             Resident resident = Resident.builder()
@@ -101,18 +117,94 @@ public class AuthServiceImpl implements AuthService {
                 .mobile(request.getMobile())
                 .flatNo(request.getFlatNo())
                 .user(user)
+                .society(society)
                 .build();
             residentRepository.save(resident);
-        } else if ("ROLE_STAFF".equals(request.getRole())) {
+        } else if (AppConstants.ROLE_STAFF.equals(request.getRole())) {
             Staff staff = Staff.builder()
                 .department(request.getDepartment())
                 .mobile(request.getMobile())
                 .user(user)
+                .society(society)
                 .build();
             staffRepository.save(staff);
         }
 
         return "User registered successfully with role: " + request.getRole();
+    }
+
+    @Override
+    @Transactional
+    public String registerPublic(PublicRegisterRequest request) {
+        if (!captchaService.verify(request.getCaptchaId(), request.getCaptchaAnswer())) {
+            throw new BadRequestException("Incorrect captcha answer. Please try again.");
+        }
+
+        if (!AppConstants.ROLE_RESIDENT.equals(request.getRole()) && !AppConstants.ROLE_STAFF.equals(request.getRole())) {
+            throw new BadRequestException("Role must be either ROLE_RESIDENT or ROLE_STAFF");
+        }
+
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new BadRequestException("Email already registered: " + request.getEmail());
+        }
+
+        Society society = societyRepository.findById(request.getSocietyId())
+            .orElseThrow(() -> new ResourceNotFoundException("Selected society was not found"));
+
+        // Residents/Staff may only self-register into a society that has
+        // already been approved and activated by SUPER_ADMIN. A PENDING or
+        // SUSPENDED society cannot accept new signups.
+        if (society.getStatus() != Society.Status.ACTIVE) {
+            throw new BadRequestException("This society is not accepting registrations right now. Please contact your society admin.");
+        }
+
+        Role role = roleRepository.findByRoleName(request.getRole())
+            .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + request.getRole()));
+
+        if (AppConstants.ROLE_RESIDENT.equals(request.getRole())) {
+            if (request.getFlatNo() == null || request.getFlatNo().isBlank()) {
+                throw new BadRequestException("Flat number is required");
+            }
+            if (residentRepository.existsByFlatNoAndSociety_SocietyId(request.getFlatNo(), society.getSocietyId())) {
+                throw new BadRequestException("Flat number already registered: " + request.getFlatNo());
+            }
+        } else if (request.getDepartment() == null || request.getDepartment().isBlank()) {
+            throw new BadRequestException("Department is required");
+        }
+
+        // New self-registered accounts start INACTIVE — they cannot log in
+        // (see CustomUserDetails.isAccountNonLocked()) until the Society
+        // Admin of this society reviews and approves them.
+        User user = User.builder()
+            .name(request.getName())
+            .email(request.getEmail())
+            .password(passwordEncoder.encode(request.getPassword()))
+            .role(role)
+            .society(society)
+            .active(false)
+            .build();
+        user = userRepository.save(user);
+
+        if (AppConstants.ROLE_RESIDENT.equals(request.getRole())) {
+            Resident resident = Resident.builder()
+                .address(request.getAddress())
+                .mobile(request.getMobile())
+                .flatNo(request.getFlatNo())
+                .user(user)
+                .society(society)
+                .build();
+            residentRepository.save(resident);
+        } else {
+            Staff staff = Staff.builder()
+                .department(request.getDepartment())
+                .mobile(request.getMobile())
+                .user(user)
+                .society(society)
+                .build();
+            staffRepository.save(staff);
+        }
+
+        return "Registration submitted for " + society.getName() + ". Your account is pending approval by your society admin.";
     }
 
     @Override

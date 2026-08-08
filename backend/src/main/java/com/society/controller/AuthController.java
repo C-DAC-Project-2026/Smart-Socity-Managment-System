@@ -6,9 +6,11 @@ import com.society.service.AuthService;
 import com.society.service.CaptchaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -33,9 +35,22 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    @Operation(summary = "Register new user (Admin only in prod)")
+    @PreAuthorize("hasRole('ADMIN')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Register a RESIDENT or STAFF user into the caller's own society",
+               description = "Society Admin only. The new user is always created in the caller's " +
+                              "society — the client cannot choose a society.")
     public ResponseEntity<ApiResponse<String>> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.ok(ApiResponse.success(authService.register(request)));
+    }
+
+    @PostMapping("/register-public")
+    @Operation(summary = "Public self-registration for a RESIDENT or STAFF user",
+               description = "Open to anyone. The user picks their society from the public society " +
+                              "list (GET /api/public/societies). The new account starts inactive and " +
+                              "can only log in once that society's Admin approves it.")
+    public ResponseEntity<ApiResponse<String>> registerPublic(@Valid @RequestBody PublicRegisterRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(authService.registerPublic(request)));
     }
 
     @PostMapping("/forgot-password")

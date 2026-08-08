@@ -46,6 +46,13 @@ public class Complaint {
     @JoinColumn(name = "assigned_staff_id")
     private Staff assignedStaff;
 
+    // Denormalized onto Complaint (in addition to being reachable via
+    // resident.society) so every direct-by-id lookup can filter with a
+    // single indexed column instead of relying on a join being present.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "society_id", nullable = false)
+    private Society society;
+
     @OneToMany(mappedBy = "complaint", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ComplaintHistory> history;
 }

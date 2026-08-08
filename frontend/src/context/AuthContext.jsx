@@ -23,6 +23,12 @@ export function AuthProvider({ children }) {
     return res.data;
   }
 
+  // Public self-registration for a Resident/Staff picking their own society.
+  async function registerPublic(payload) {
+    const res = await api.post("/auth/register-public", payload);
+    return res.data;
+  }
+
   function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");

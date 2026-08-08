@@ -4,6 +4,7 @@ import com.society.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -41,10 +42,31 @@ public class GlobalExceptionHandler {
         return ApiResponse.error("Access denied: you don't have permission to perform this action");
     }
 
+    /**
+     * Authenticated-but-not-entitled cases (see SecurityUtils, NotificationServiceImpl).
+     * Deliberately 403, not 401: the frontend's axios interceptor force-clears the
+     * session and redirects to /login on ANY 401, treating it as "your token is
+     * invalid/expired". A business-rule rejection must never trigger that — the user
+     * is correctly logged in, they just can't do this one thing.
+     */
+    @ExceptionHandler(ForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleForbidden(ForbiddenException ex) {
+        log.error("Forbidden: {}", ex.getMessage());
+        return ApiResponse.error(ex.getMessage());
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ApiResponse<Void> handleBadCredentials(BadCredentialsException ex) {
         return ApiResponse.error("Invalid email or password");
+    }
+
+    /** Covers DisabledException (deactivated user) and LockedException (suspended society). */
+    @ExceptionHandler(AccountStatusException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleAccountStatus(AccountStatusException ex) {
+        return ApiResponse.error("Your account or society is not active. Please contact your administrator.");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

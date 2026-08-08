@@ -37,6 +37,7 @@ public class JwtTokenProvider {
             .setSubject(userDetails.getUsername())
             .claim("userId", custom.getUserId())
             .claim("role",   custom.getRole())
+            .claim("societyId", custom.getSocietyId())
             .setIssuedAt(now)
             .setExpiration(expiry)
             .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -52,6 +53,20 @@ public class JwtTokenProvider {
         Claims claims = Jwts.parserBuilder().setSigningKey(getSigningKey()).build()
             .parseClaimsJws(token).getBody();
         return claims.get("userId", Long.class);
+    }
+
+    /**
+     * NOTE: this reads the societyId claim embedded in the token at login time.
+     * It is exposed for logging/debugging/stateless clients only. Backend
+     * authorization decisions must NEVER use this — they must use
+     * SecurityUtils.getCurrentSocietyId(), which is re-derived from the
+     * database on every request (so a suspended society or a society
+     * transfer takes effect immediately instead of waiting for token expiry).
+     */
+    public Long getSocietyIdFromToken(String token) {
+        Claims claims = Jwts.parserBuilder().setSigningKey(getSigningKey()).build()
+            .parseClaimsJws(token).getBody();
+        return claims.get("societyId", Long.class);
     }
 
     public Long getUserIdFromRequest(HttpServletRequest request) {

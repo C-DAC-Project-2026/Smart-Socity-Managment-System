@@ -33,6 +33,19 @@ public class User {
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
+    /**
+     * The society this user belongs to. Null ONLY for SUPER_ADMIN accounts,
+     * which are platform-level and not scoped to any single society.
+     * Every other role (ADMIN, RESIDENT, STAFF) must have this set.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "society_id")
+    private Society society;
+
+    @Column(name = "active", nullable = false)
+    @Builder.Default
+    private Boolean active = true;
+
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Resident resident;
 

@@ -24,6 +24,10 @@ public class Payment {
     @JoinColumn(name = "bill_id", nullable = false, unique = true)
     private MaintenanceBill bill;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "society_id", nullable = false)
+    private Society society;
+
     @CreationTimestamp
     @Column(name = "payment_date")
     private LocalDateTime paymentDate;

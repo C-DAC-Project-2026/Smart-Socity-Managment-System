@@ -9,6 +9,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [captcha, setCaptcha] = useState({ captchaId: "", answer: "" });
+  const [captchaKey, setCaptchaKey] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -18,12 +19,18 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password, captcha.captchaId, captcha.answer);
-      navigate("/");
+      navigate("/dashboard");
     } catch (err) {
       setError(
         err.response?.data?.message ||
           "Login failed. Check your email and password."
       );
+      // The captcha is single-use server-side (consumed on every attempt,
+      // right or wrong). If we don't fetch a new one, the next submit will
+      // fail with "Incorrect captcha answer" even with correct credentials,
+      // producing a confusing cascade of repeated failures. Remounting
+      // <Captcha> forces it to fetch a fresh question/id automatically.
+      setCaptchaKey((k) => k + 1);
     } finally {
       setLoading(false);
     }
@@ -31,8 +38,12 @@ export default function Login() {
 
   return (
     <div className="auth-page">
+      <Link to="/" className="brand-mark auth-page-brand">
+        <span className="brand-mark-icon">SS</span>
+        Smart Society
+      </Link>
       <form className="auth-card" onSubmit={handleSubmit}>
-        <h2>Smart Society Login</h2>
+        <h2>Welcome back</h2>
         {error && <div className="error-box">{error}</div>}
         <label>Email</label>
         <input
@@ -53,7 +64,7 @@ export default function Login() {
           <Link to="/forgot-password">Forgot password?</Link>
         </div>
 
-        <Captcha onChange={setCaptcha} />
+        <Captcha key={captchaKey} onChange={setCaptcha} />
 
         <button type="submit" disabled={loading}>
           {loading ? "Logging in..." : "Login"}

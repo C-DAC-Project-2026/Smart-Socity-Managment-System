@@ -73,6 +73,7 @@ export default function Residents() {
             <th>Flat No</th>
             <th>Mobile</th>
             <th>Address</th>
+            <th>Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -85,6 +86,11 @@ export default function Residents() {
               <td>{r.mobile}</td>
               <td>{r.address}</td>
               <td>
+                <span className={`badge ${r.active ? "badge-active" : "badge-pending"}`}>
+                  {r.active ? "Active" : "Pending"}
+                </span>
+              </td>
+              <td>
                 <button onClick={() => setEditing(r)}>Edit</button>
                 <button className="danger" onClick={() => handleDelete(r.residentId)}>
                   Delete
@@ -94,7 +100,7 @@ export default function Residents() {
           ))}
           {residents.length === 0 && (
             <tr>
-              <td colSpan={6}>No residents found.</td>
+              <td colSpan={7}>No residents found.</td>
             </tr>
           )}
         </tbody>

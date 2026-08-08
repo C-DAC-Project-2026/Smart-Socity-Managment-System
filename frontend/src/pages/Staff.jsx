@@ -57,6 +57,7 @@ export default function Staff() {
             <th>Email</th>
             <th>Department</th>
             <th>Mobile</th>
+            {user.role === "ROLE_ADMIN" && <th>Status</th>}
             {user.role === "ROLE_ADMIN" && <th>Actions</th>}
           </tr>
         </thead>
@@ -67,6 +68,13 @@ export default function Staff() {
               <td>{s.email}</td>
               <td>{s.department}</td>
               <td>{s.mobile}</td>
+              {user.role === "ROLE_ADMIN" && (
+                <td>
+                  <span className={`badge ${s.active ? "badge-active" : "badge-pending"}`}>
+                    {s.active ? "Active" : "Pending"}
+                  </span>
+                </td>
+              )}
               {(user.role === "ROLE_ADMIN" || user.role === "ROLE_STAFF") && (
                 <td>
                   <button onClick={() => setEditing(s)}>Edit</button>
@@ -81,7 +89,7 @@ export default function Staff() {
           ))}
           {staff.length === 0 && (
             <tr>
-              <td colSpan={5}>No staff found.</td>
+              <td colSpan={user.role === "ROLE_ADMIN" ? 6 : 4}>No staff found.</td>
             </tr>
           )}
         </tbody>

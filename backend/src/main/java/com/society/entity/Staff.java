@@ -25,6 +25,10 @@ public class Staff {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "society_id", nullable = false)
+    private Society society;
+
     @OneToMany(mappedBy = "assignedStaff", fetch = FetchType.LAZY)
     private List<Complaint> assignedComplaints;
 }

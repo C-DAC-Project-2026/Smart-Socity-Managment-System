@@ -59,4 +59,26 @@ public class ResidentController {
     public ResponseEntity<ApiResponse<List<ResidentDTO>>> search(@RequestParam String q) {
         return ResponseEntity.ok(ApiResponse.success("Search results", residentService.searchResidents(q)));
     }
+
+    @GetMapping("/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "List self-registered residents awaiting approval")
+    public ResponseEntity<ApiResponse<List<ResidentDTO>>> getPending() {
+        return ResponseEntity.ok(ApiResponse.success("Pending residents fetched", residentService.getPendingResidents()));
+    }
+
+    @PutMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Approve a self-registered resident so they can log in")
+    public ResponseEntity<ApiResponse<ResidentDTO>> approve(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Resident approved", residentService.approveResident(id)));
+    }
+
+    @PutMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Reject and remove a self-registered resident")
+    public ResponseEntity<ApiResponse<Void>> reject(@PathVariable Long id) {
+        residentService.rejectResident(id);
+        return ResponseEntity.ok(ApiResponse.success("Resident registration rejected"));
+    }
 }

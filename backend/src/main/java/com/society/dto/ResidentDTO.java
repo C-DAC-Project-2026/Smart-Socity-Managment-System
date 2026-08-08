@@ -11,6 +11,9 @@ public class ResidentDTO {
     private String name;
     private String email;
 
+    /** False while awaiting Society Admin approval after self-registration. */
+    private Boolean active;
+
     @NotBlank(message = "Address is required")
     private String address;
 

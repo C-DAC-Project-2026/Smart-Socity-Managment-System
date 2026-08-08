@@ -6,8 +6,10 @@ import com.society.entity.*;
 import com.society.exception.BadRequestException;
 import com.society.exception.ResourceNotFoundException;
 import com.society.repository.*;
+import com.society.security.SecurityUtils;
 import com.society.service.ComplaintService;
 import com.society.service.NotificationService;
+import com.society.util.AppConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,11 +26,13 @@ public class ComplaintServiceImpl implements ComplaintService {
     private final StaffRepository            staffRepository;
     private final UserRepository             userRepository;
     private final NotificationService        notificationService;
+    private final SecurityUtils              securityUtils;
 
     @Override
     @Transactional
     public ComplaintDTO createComplaint(ComplaintDTO dto, Long userId) {
-        Resident resident = residentRepository.findByUser_UserId(userId)
+        Long societyId = securityUtils.getCurrentSocietyId();
+        Resident resident = residentRepository.findByUser_UserIdAndSociety_SocietyId(userId, societyId)
             .orElseThrow(() -> new ResourceNotFoundException("Resident profile not found"));
 
         Complaint complaint = Complaint.builder()
@@ -36,30 +40,36 @@ public class ComplaintServiceImpl implements ComplaintService {
             .description(dto.getDescription())
             .status(Complaint.Status.PENDING)
             .resident(resident)
+            .society(resident.getSociety())
             .build();
         complaint = complaintRepository.save(complaint);
 
-        // Notify admin
-        notificationService.sendNotification(1L,
-            "New complaint raised by " + resident.getUser().getName() + ": " + dto.getTitle(),
-            "COMPLAINT");
+        // Notify every Society Admin of THIS resident's society (never a
+        // hardcoded global user id, which would leak across tenants).
+        for (User admin : userRepository.findByRole_RoleNameAndSociety_SocietyId(AppConstants.ROLE_ADMIN, societyId)) {
+            notificationService.sendNotification(admin.getUserId(),
+                "New complaint raised by " + resident.getUser().getName() + ": " + dto.getTitle(),
+                "COMPLAINT");
+        }
 
         return toDTO(complaint);
     }
 
     @Override
     public Page<ComplaintDTO> getAllComplaints(Pageable pageable) {
-        return complaintRepository.findAll(pageable).map(this::toDTO);
+        return complaintRepository.findBySociety_SocietyId(securityUtils.getCurrentSocietyId(), pageable).map(this::toDTO);
     }
 
     @Override
     public Page<ComplaintDTO> getComplaintsByResident(Long residentId, Pageable pageable) {
-        return complaintRepository.findByResident_ResidentId(residentId, pageable).map(this::toDTO);
+        return complaintRepository.findByResident_ResidentIdAndSociety_SocietyId(
+            residentId, securityUtils.getCurrentSocietyId(), pageable).map(this::toDTO);
     }
 
     @Override
     public Page<ComplaintDTO> getComplaintsByStaff(Long staffId, Pageable pageable) {
-        return complaintRepository.findByAssignedStaff_StaffId(staffId, pageable).map(this::toDTO);
+        return complaintRepository.findByAssignedStaff_StaffIdAndSociety_SocietyId(
+            staffId, securityUtils.getCurrentSocietyId(), pageable).map(this::toDTO);
     }
 
     @Override
@@ -79,7 +89,6 @@ public class ComplaintServiceImpl implements ComplaintService {
             throw new BadRequestException("Invalid status: " + dto.getStatus());
         }
 
-        // Save history
         User updatedBy = userRepository.findById(updatedByUserId).orElse(null);
         ComplaintHistory history = ComplaintHistory.builder()
             .complaint(complaint)
@@ -93,7 +102,6 @@ public class ComplaintServiceImpl implements ComplaintService {
         complaint.setStatus(newStatus);
         complaint = complaintRepository.save(complaint);
 
-        // Notify resident
         notificationService.sendNotification(
             complaint.getResident().getUser().getUserId(),
             "Your complaint \"" + complaint.getTitle() + "\" status updated to: " + newStatus,
@@ -106,7 +114,7 @@ public class ComplaintServiceImpl implements ComplaintService {
     @Transactional
     public ComplaintDTO assignComplaint(Long id, Long staffId, Long adminUserId) {
         Complaint complaint = findById(id);
-        Staff staff = staffRepository.findById(staffId)
+        Staff staff = staffRepository.findByStaffIdAndSociety_SocietyId(staffId, securityUtils.getCurrentSocietyId())
             .orElseThrow(() -> new ResourceNotFoundException("Staff not found: " + staffId));
 
         Complaint.Status oldStatus = complaint.getStatus();
@@ -114,7 +122,6 @@ public class ComplaintServiceImpl implements ComplaintService {
         complaint.setStatus(Complaint.Status.ASSIGNED);
         complaint = complaintRepository.save(complaint);
 
-        // History
         User admin = userRepository.findById(adminUserId).orElse(null);
         historyRepository.save(ComplaintHistory.builder()
             .complaint(complaint)
@@ -124,10 +131,8 @@ public class ComplaintServiceImpl implements ComplaintService {
             .updatedBy(admin)
             .build());
 
-        // Notify staff
         notificationService.sendNotification(staff.getUser().getUserId(),
             "New complaint assigned to you: " + complaint.getTitle(), "COMPLAINT");
-        // Notify resident
         notificationService.sendNotification(complaint.getResident().getUser().getUserId(),
             "Your complaint \"" + complaint.getTitle() + "\" has been assigned to " + staff.getUser().getName(),
             "COMPLAINT");
@@ -143,7 +148,7 @@ public class ComplaintServiceImpl implements ComplaintService {
 
     // ---------- helpers ----------
     private Complaint findById(Long id) {
-        return complaintRepository.findById(id)
+        return complaintRepository.findByComplaintIdAndSociety_SocietyId(id, securityUtils.getCurrentSocietyId())
             .orElseThrow(() -> new ResourceNotFoundException("Complaint not found: " + id));
     }
 

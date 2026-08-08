@@ -6,6 +6,7 @@ import Captcha from "../components/Captcha";
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [captcha, setCaptcha] = useState({ captchaId: "", answer: "" });
+  const [captchaKey, setCaptchaKey] = useState(0);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,9 @@ export default function ForgotPassword() {
         err.response?.data?.message ||
           "Could not send reset link. Please try again."
       );
+      // Captcha is single-use server-side; refresh it or the next retry
+      // will fail on "Incorrect captcha answer" even with valid input.
+      setCaptchaKey((k) => k + 1);
     } finally {
       setLoading(false);
     }
@@ -34,6 +38,10 @@ export default function ForgotPassword() {
 
   return (
     <div className="auth-page">
+      <Link to="/" className="brand-mark auth-page-brand">
+        <span className="brand-mark-icon">SS</span>
+        Smart Society
+      </Link>
       <form className="auth-card" onSubmit={handleSubmit}>
         <h2>Forgot Password</h2>
         <p style={{ marginTop: "-0.5rem", color: "#6b7280", fontSize: "0.9rem" }}>
@@ -50,7 +58,7 @@ export default function ForgotPassword() {
           required
         />
 
-        <Captcha onChange={setCaptcha} />
+        <Captcha key={captchaKey} onChange={setCaptcha} />
 
         <button type="submit" disabled={loading}>
           {loading ? "Sending..." : "Send Reset Link"}

@@ -6,9 +6,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 public interface MaintenanceBillRepository extends JpaRepository<MaintenanceBill, Long> {
-    Page<MaintenanceBill> findByResident_ResidentId(Long residentId, Pageable pageable);
-    List<MaintenanceBill> findByResident_ResidentId(Long residentId);
-    Optional<MaintenanceBill> findByResident_ResidentIdAndMonthAndYear(Long residentId, int month, int year);
-    long countByStatus(MaintenanceBill.BillStatus status);
-    Page<MaintenanceBill> findByStatus(MaintenanceBill.BillStatus status, Pageable pageable);
+    Optional<MaintenanceBill> findByBillIdAndSociety_SocietyId(Long billId, Long societyId);
+    Page<MaintenanceBill> findByResident_ResidentIdAndSociety_SocietyId(Long residentId, Long societyId, Pageable pageable);
+    List<MaintenanceBill> findByResident_ResidentIdAndSociety_SocietyId(Long residentId, Long societyId);
+    Optional<MaintenanceBill> findByResident_ResidentIdAndMonthAndYearAndSociety_SocietyId(
+            Long residentId, int month, int year, Long societyId);
+    long countByStatusAndSociety_SocietyId(MaintenanceBill.BillStatus status, Long societyId);
+    Page<MaintenanceBill> findByStatusAndSociety_SocietyId(MaintenanceBill.BillStatus status, Long societyId, Pageable pageable);
+    Page<MaintenanceBill> findBySociety_SocietyId(Long societyId, Pageable pageable);
+    long countBySociety_SocietyId(Long societyId);
 }

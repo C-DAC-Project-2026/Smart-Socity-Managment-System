@@ -37,4 +37,20 @@ public class StaffController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         staffService.deleteStaff(id); return ResponseEntity.ok(ApiResponse.success("Staff deleted"));
     }
+
+    @GetMapping("/pending") @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<StaffDTO>>> getPending() {
+        return ResponseEntity.ok(ApiResponse.success("Pending staff fetched", staffService.getPendingStaff()));
+    }
+
+    @PutMapping("/{id}/approve") @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<StaffDTO>> approve(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Staff approved", staffService.approveStaff(id)));
+    }
+
+    @PutMapping("/{id}/reject") @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> reject(@PathVariable Long id) {
+        staffService.rejectStaff(id);
+        return ResponseEntity.ok(ApiResponse.success("Staff registration rejected"));
+    }
 }

@@ -45,6 +45,10 @@ public class MaintenanceBill {
     @JoinColumn(name = "resident_id", nullable = false)
     private Resident resident;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "society_id", nullable = false)
+    private Society society;
+
     @OneToOne(mappedBy = "bill", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Payment payment;
 }

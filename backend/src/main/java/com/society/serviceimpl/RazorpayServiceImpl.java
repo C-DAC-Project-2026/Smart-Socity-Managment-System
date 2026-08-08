@@ -8,6 +8,7 @@ import com.society.exception.BadRequestException;
 import com.society.exception.ResourceNotFoundException;
 import com.society.repository.MaintenanceBillRepository;
 import com.society.repository.PaymentRepository;
+import com.society.security.SecurityUtils;
 import com.society.service.NotificationService;
 import com.society.service.RazorpayService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class RazorpayServiceImpl implements RazorpayService {
     private final MaintenanceBillRepository billRepository;
     private final PaymentRepository         paymentRepository;
     private final NotificationService       notificationService;
+    private final SecurityUtils             securityUtils;
 
     @Value("${razorpay.key.id}")
     private String keyId;
@@ -45,14 +47,15 @@ public class RazorpayServiceImpl implements RazorpayService {
     // ── STEP 1: Create Razorpay Order ────────────────────────────────
     @Override
     public CreateOrderResponse createOrder(Long billId) {
-        MaintenanceBill bill = billRepository.findById(billId)
+        Long societyId = securityUtils.getCurrentSocietyId();
+        MaintenanceBill bill = billRepository.findByBillIdAndSociety_SocietyId(billId, societyId)
             .orElseThrow(() -> new ResourceNotFoundException("Bill not found: " + billId));
 
         if (bill.getStatus() == MaintenanceBill.BillStatus.PAID) {
             throw new BadRequestException("Bill is already paid.");
         }
 
-        if (paymentRepository.findByBill_BillId(billId).isPresent()) {
+        if (paymentRepository.findByBill_BillIdAndSociety_SocietyId(billId, societyId).isPresent()) {
             throw new BadRequestException("Payment already exists for this bill.");
         }
 
@@ -105,8 +108,11 @@ public class RazorpayServiceImpl implements RazorpayService {
             throw new BadRequestException("Payment verification failed — invalid signature.");
         }
 
-        // 2. Fetch the bill
-        MaintenanceBill bill = billRepository.findById(req.getBillId())
+        // 2. Fetch the bill — scoped to the caller's society, so a
+        // tampered billId belonging to another tenant can never be paid
+        // (or have its Razorpay order/verification tied to this account).
+        MaintenanceBill bill = billRepository.findByBillIdAndSociety_SocietyId(
+                req.getBillId(), securityUtils.getCurrentSocietyId())
             .orElseThrow(() -> new ResourceNotFoundException("Bill not found: " + req.getBillId()));
 
         // 3. Save payment record
@@ -116,6 +122,7 @@ public class RazorpayServiceImpl implements RazorpayService {
             .paymentMode(resolvePaymentMode(req.getPaymentMode()))
             .transactionId(req.getRazorpayPaymentId())
             .status(Payment.PaymentStatus.SUCCESS)
+            .society(bill.getSociety())
             .build();
         paymentRepository.save(payment);
 

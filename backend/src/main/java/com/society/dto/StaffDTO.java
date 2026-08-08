@@ -11,6 +11,9 @@ public class StaffDTO {
     private String name;
     private String email;
 
+    /** False while awaiting Society Admin approval after self-registration. */
+    private Boolean active;
+
     @NotBlank(message = "Department is required")
     private String department;
 
